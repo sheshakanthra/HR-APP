@@ -96,6 +96,25 @@ export interface LeaveBalance {
   available: number;
 }
 
+export interface AgentSource {
+  doc_title: string;
+  doc_version: number;
+}
+
+export interface AgentMessage {
+  id: number;
+  role: string;
+  content: string;
+  tool_calls?: unknown;
+  sources?: AgentSource[] | null;
+  created_at: string;
+}
+
+export interface ChatResponse {
+  conversation_id: number;
+  reply: AgentMessage;
+}
+
 export type PolicyStatus = "draft" | "published";
 
 export interface PolicyBrief {

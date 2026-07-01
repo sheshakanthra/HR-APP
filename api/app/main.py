@@ -40,14 +40,14 @@ def create_app() -> FastAPI:
         return {"status": "ok", "env": settings.app_env}
 
     # Routers (registered as milestones land):
-    from app.api.routes import admin, auth, directory, leave, policy
+    from app.api.routes import admin, agent, auth, directory, leave, policy
 
     app.include_router(auth.router)
     app.include_router(admin.router)
     app.include_router(directory.router)
     app.include_router(leave.router)
     app.include_router(policy.router)
-    # agent lands in Milestone 5.
+    app.include_router(agent.router)
 
     logger.info("PeopleDesk API initialized (env=%s)", settings.app_env)
     return app
