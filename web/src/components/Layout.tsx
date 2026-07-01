@@ -5,6 +5,7 @@ import {
   Network,
   CalendarClock,
   CheckSquare,
+  BookText,
   Bot,
   LogOut,
 } from "lucide-react";
@@ -15,6 +16,7 @@ const NAV = [
   { to: "/org-chart", label: "Org Chart", icon: Network, minRole: "employee" as const },
   { to: "/leave", label: "My Leave", icon: CalendarClock, minRole: "employee" as const },
   { to: "/approvals", label: "Approvals", icon: CheckSquare, minRole: "manager" as const },
+  { to: "/policies", label: "Policies", icon: BookText, minRole: "employee" as const },
   { to: "/agent", label: "AI Assistant", icon: Bot, minRole: "employee" as const },
 ];
 

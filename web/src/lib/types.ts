@@ -96,6 +96,38 @@ export interface LeaveBalance {
   available: number;
 }
 
+export type PolicyStatus = "draft" | "published";
+
+export interface PolicyBrief {
+  id: number;
+  title: string;
+  category: string;
+  version: number;
+  status: PolicyStatus;
+  effective_date: string | null;
+  updated_at: string;
+}
+
+export interface Policy extends PolicyBrief {
+  body: string;
+  chunk_count: number | null;
+}
+
+export interface PolicySearchResult {
+  chunk_id: number;
+  document_id: number;
+  doc_title: string;
+  doc_version: number;
+  chunk_text: string;
+  similarity: number;
+}
+
+export interface PolicySearchResponse {
+  query: string;
+  results: PolicySearchResult[];
+  grounded: boolean;
+}
+
 export interface LeaveRequest {
   id: number;
   employee_id: number;

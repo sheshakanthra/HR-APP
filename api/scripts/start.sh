@@ -10,6 +10,8 @@ alembic upgrade head
 if [ "${SEED_ON_START:-false}" = "true" ]; then
   echo "[start] seeding database..."
   python -m app.seed || echo "[start] seed skipped/failed (non-fatal)"
+  echo "[start] indexing published policies (downloads embedding model on first run)..."
+  python -m app.scripts.ingest_policies || echo "[start] policy ingest skipped/failed (non-fatal)"
 fi
 
 echo "[start] launching API..."

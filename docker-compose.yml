@@ -35,6 +35,8 @@ services:
       # Dev bind-mount: host code is live inside the container (no rebuild on
       # code changes). The image still bundles the code for standalone runs.
       - ./api:/app
+      # Persist the downloaded local embedding model across runs.
+      - hfcache:/root/.cache
 
   web:
     build: ./web
@@ -47,3 +49,4 @@ services:
 
 volumes:
   pgdata:
+  hfcache:

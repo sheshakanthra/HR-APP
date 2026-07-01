@@ -8,6 +8,9 @@ import type {
   LeaveRequest,
   LeaveType,
   OrgNode,
+  Policy,
+  PolicyBrief,
+  PolicySearchResponse,
 } from "./types";
 
 // ---- Directory ----
@@ -109,5 +112,72 @@ export function useDecideLeave() {
         body: JSON.stringify({ note }),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["approvals"] }),
+  });
+}
+
+// ---- Policies ----
+export function usePolicies() {
+  return useQuery({
+    queryKey: ["policies"],
+    queryFn: () => apiFetch<PolicyBrief[]>("/policies"),
+  });
+}
+
+export function usePolicy(id: number | null) {
+  return useQuery({
+    queryKey: ["policy", id],
+    queryFn: () => apiFetch<Policy>(`/policies/${id}`),
+    enabled: id != null,
+  });
+}
+
+export function usePolicySearch() {
+  return useMutation({
+    mutationFn: (q: string) =>
+      apiFetch<PolicySearchResponse>(`/policies/search?q=${encodeURIComponent(q)}`),
+  });
+}
+
+function invalidatePolicies(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ["policies"] });
+}
+
+export function useCreatePolicy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { title: string; category: string; body: string }) =>
+      apiFetch<Policy>("/policies", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => invalidatePolicies(qc),
+  });
+}
+
+export function useUpdatePolicy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; title?: string; category?: string; body?: string }) =>
+      apiFetch<Policy>(`/policies/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+    onSuccess: (_d, v) => {
+      invalidatePolicies(qc);
+      qc.invalidateQueries({ queryKey: ["policy", v.id] });
+    },
+  });
+}
+
+export function usePolicyLifecycle(action: "publish" | "unpublish") {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<Policy>(`/policies/${id}/${action}`, { method: "POST" }),
+    onSuccess: (_d, id) => {
+      invalidatePolicies(qc);
+      qc.invalidateQueries({ queryKey: ["policy", id] });
+    },
+  });
+}
+
+export function useDeletePolicy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<void>(`/policies/${id}`, { method: "DELETE" }),
+    onSuccess: () => invalidatePolicies(qc),
   });
 }

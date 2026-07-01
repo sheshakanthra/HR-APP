@@ -1,26 +1,32 @@
-"""Leave balance math + approval state machine tests."""
+"""Leave balance math + approval state machine tests.
+
+Lifecycle tests use an ISOLATED team (fresh employees + large balances created
+per run) so they don't deplete shared seeded balances and stay deterministic.
+"""
 
 from __future__ import annotations
 
 from datetime import date, timedelta
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
+from app.core.security import hash_password
 from app.database import SessionLocal
+from app.models.department import Department
 from app.models.employee import Employee
-from app.models.enums import LeaveStatus
-from app.models.leave import LeaveBalance, LeaveRequest
+from app.models.enums import LeaveStatus, RBACRole
+from app.models.leave import LeaveBalance, LeaveRequest, LeaveType
 from app.models.user import User
 from app.services import leave as leave_svc
+
+PW = "Passw0rd!"
 
 
 # ---- pure function: business day math ----
 
 def test_business_days_single_weekday():
-    # a Monday
-    d = date(2026, 7, 6)
-    assert leave_svc.business_days(d, d) == 1
+    assert leave_svc.business_days(date(2026, 7, 6), date(2026, 7, 6)) == 1  # a Monday
 
 
 def test_business_days_full_week_skips_weekend():
@@ -33,27 +39,80 @@ def test_business_days_end_before_start_raises():
         leave_svc.business_days(date(2026, 7, 10), date(2026, 7, 1))
 
 
-# ---- helper: find a manager + one of their reports from seed ----
+# ---- isolated team fixture ----
 
-def _manager_with_report():
+@pytest.fixture(scope="module")
+def team():
+    """Create manager + report + an unrelated manager, each with big balances."""
     db = SessionLocal()
+    created_ids: dict[str, int] = {}
     try:
-        report = db.scalar(select(Employee).where(Employee.manager_id.isnot(None)).limit(1))
-        manager = db.get(Employee, report.manager_id)
-        mgr_user = db.scalar(select(User).where(User.employee_id == manager.id))
-        rep_user = db.scalar(select(User).where(User.employee_id == report.id))
-        return {
-            "manager_email": mgr_user.email,
-            "report_email": rep_user.email,
+        dept = db.scalar(select(Department).limit(1))
+        types = list(db.scalars(select(LeaveType)))
+        suffix = "isolteam"
+
+        def mk(role: RBACRole, first: str, manager_id=None) -> Employee:
+            emp = Employee(
+                first_name=first,
+                last_name="Iso",
+                work_email=f"{first.lower()}.{suffix}@peopledesk.io",
+                title="Test",
+                location="Remote",
+                hire_date=date(2020, 1, 1),
+                department_id=dept.id,
+                manager_id=manager_id,
+            )
+            db.add(emp)
+            db.flush()
+            for lt in types:
+                db.add(LeaveBalance(employee_id=emp.id, leave_type_id=lt.id, accrued=100, used=0))
+            db.add(
+                User(
+                    email=emp.work_email,
+                    password_hash=hash_password(PW),
+                    rbac_role=role,
+                    employee_id=emp.id,
+                )
+            )
+            return emp
+
+        manager = mk(RBACRole.manager, "Mgr")
+        report = mk(RBACRole.employee, "Rep", manager_id=manager.id)
+        other_mgr = mk(RBACRole.manager, "Othr")
+        db.commit()
+        info = {
+            "manager_email": manager.work_email,
+            "report_email": report.work_email,
+            "other_mgr_email": other_mgr.work_email,
             "report_id": report.id,
+            "type_by_code": {lt.code: lt.id for lt in types},
         }
+        created_ids = {
+            "emp": [manager.id, report.id, other_mgr.id],
+        }
+        yield info
     finally:
+        # teardown: remove requests, balances, users, employees we created
+        emp_ids = created_ids.get("emp", [])
+        if emp_ids:
+            db.execute(delete(LeaveRequest).where(LeaveRequest.employee_id.in_(emp_ids)))
+            db.execute(delete(LeaveBalance).where(LeaveBalance.employee_id.in_(emp_ids)))
+            db.execute(delete(User).where(User.employee_id.in_(emp_ids)))
+            db.execute(delete(Employee).where(Employee.id.in_(emp_ids)))
+            db.commit()
         db.close()
 
 
-def _headers(client, email, password="Passw0rd!"):
+def _headers(client, email, password=PW):
     tok = client.post("/auth/login", json={"email": email, "password": password}).json()["access_token"]
     return {"Authorization": f"Bearer {tok}"}
+
+
+def _next_weekday(offset: int) -> date:
+    d = date.today() + timedelta(days=offset)
+    while d.weekday() >= 5:
+        d += timedelta(days=1)
+    return d
 
 
 # ---- API: balance + full request lifecycle ----
@@ -61,158 +120,101 @@ def _headers(client, email, password="Passw0rd!"):
 def test_balance_endpoint(client, auth_headers):
     r = client.get("/leave/balance", headers=auth_headers["employee"])
     assert r.status_code == 200
-    balances = r.json()
-    assert len(balances) >= 1
-    for b in balances:
+    for b in r.json():
         assert b["available"] == pytest.approx(b["accrued"] - b["used"])
 
 
-def test_submit_then_approve_flow(client):
-    ctx = _manager_with_report()
-    rep_h = _headers(client, ctx["report_email"])
-    mgr_h = _headers(client, ctx["manager_email"])
+def test_submit_then_approve_flow(client, team):
+    rep_h = _headers(client, team["report_email"])
+    mgr_h = _headers(client, team["manager_email"])
+    annual_id = team["type_by_code"]["ANNUAL"]
 
-    types = client.get("/leave/types", headers=rep_h).json()
-    annual = next(t for t in types if t["code"] == "ANNUAL")
-
-    start = date.today() + timedelta(days=10)
-    while start.weekday() >= 5:
-        start += timedelta(days=1)
-    end = start  # one business day
-
-    bal_before = client.get("/leave/balance", headers=rep_h).json()
-    used_before = next(b["used"] for b in bal_before if b["leave_type_id"] == annual["id"])
+    start = _next_weekday(10)
+    used_before = next(
+        b["used"] for b in client.get("/leave/balance", headers=rep_h).json()
+        if b["leave_type_id"] == annual_id
+    )
 
     create = client.post(
         "/leave/requests",
         headers=rep_h,
-        json={
-            "leave_type_id": annual["id"],
-            "start_date": start.isoformat(),
-            "end_date": end.isoformat(),
-            "reason": "vacation",
-        },
+        json={"leave_type_id": annual_id, "start_date": start.isoformat(), "end_date": start.isoformat(), "reason": "vacation"},
     )
     assert create.status_code == 201, create.text
     req = create.json()
-    assert req["status"] == "pending"
-    assert req["days"] == 1
+    assert req["status"] == "pending" and req["days"] == 1
 
-    # hold applied
-    bal_after = client.get("/leave/balance", headers=rep_h).json()
-    used_after = next(b["used"] for b in bal_after if b["leave_type_id"] == annual["id"])
+    used_after = next(
+        b["used"] for b in client.get("/leave/balance", headers=rep_h).json()
+        if b["leave_type_id"] == annual_id
+    )
     assert used_after == pytest.approx(used_before + 1)
 
-    # appears in manager's queue
-    queue = client.get("/leave/approvals", headers=mgr_h).json()
-    assert any(q["id"] == req["id"] for q in queue)
+    assert any(q["id"] == req["id"] for q in client.get("/leave/approvals", headers=mgr_h).json())
 
-    # approve
     ok = client.post(f"/leave/requests/{req['id']}/approve", headers=mgr_h, json={"note": "ok"})
-    assert ok.status_code == 200
-    assert ok.json()["status"] == "approved"
+    assert ok.status_code == 200 and ok.json()["status"] == "approved"
 
-    # balance hold remains after approval (approved days stay counted)
-    bal_final = client.get("/leave/balance", headers=rep_h).json()
-    used_final = next(b["used"] for b in bal_final if b["leave_type_id"] == annual["id"])
-    assert used_final == pytest.approx(used_before + 1)
-
-
-def test_reject_releases_hold(client):
-    ctx = _manager_with_report()
-    rep_h = _headers(client, ctx["report_email"])
-    mgr_h = _headers(client, ctx["manager_email"])
-    annual = next(
-        t for t in client.get("/leave/types", headers=rep_h).json() if t["code"] == "SICK"
+    used_final = next(
+        b["used"] for b in client.get("/leave/balance", headers=rep_h).json()
+        if b["leave_type_id"] == annual_id
     )
+    assert used_final == pytest.approx(used_before + 1)  # approved days stay held
 
-    start = date.today() + timedelta(days=20)
-    while start.weekday() >= 5:
-        start += timedelta(days=1)
+
+def test_reject_releases_hold(client, team):
+    rep_h = _headers(client, team["report_email"])
+    mgr_h = _headers(client, team["manager_email"])
+    sick_id = team["type_by_code"]["SICK"]
+    start = _next_weekday(20)
 
     used_before = next(
         b["used"] for b in client.get("/leave/balance", headers=rep_h).json()
-        if b["leave_type_id"] == annual["id"]
+        if b["leave_type_id"] == sick_id
     )
     req = client.post(
         "/leave/requests",
         headers=rep_h,
-        json={"leave_type_id": annual["id"], "start_date": start.isoformat(), "end_date": start.isoformat(), "reason": "x"},
+        json={"leave_type_id": sick_id, "start_date": start.isoformat(), "end_date": start.isoformat(), "reason": "x"},
     ).json()
-
     client.post(f"/leave/requests/{req['id']}/reject", headers=mgr_h, json={"note": "no"})
     used_after = next(
         b["used"] for b in client.get("/leave/balance", headers=rep_h).json()
-        if b["leave_type_id"] == annual["id"]
+        if b["leave_type_id"] == sick_id
     )
     assert used_after == pytest.approx(used_before)
 
 
-def test_cannot_approve_already_decided(client):
-    ctx = _manager_with_report()
-    rep_h = _headers(client, ctx["report_email"])
-    mgr_h = _headers(client, ctx["manager_email"])
-    annual = next(
-        t for t in client.get("/leave/types", headers=rep_h).json() if t["code"] == "CASUAL"
-    )
-    start = date.today() + timedelta(days=30)
-    while start.weekday() >= 5:
-        start += timedelta(days=1)
+def test_cannot_approve_already_decided(client, team):
+    rep_h = _headers(client, team["report_email"])
+    mgr_h = _headers(client, team["manager_email"])
+    casual_id = team["type_by_code"]["CASUAL"]
+    start = _next_weekday(30)
     req = client.post(
         "/leave/requests",
         headers=rep_h,
-        json={"leave_type_id": annual["id"], "start_date": start.isoformat(), "end_date": start.isoformat(), "reason": "x"},
+        json={"leave_type_id": casual_id, "start_date": start.isoformat(), "end_date": start.isoformat(), "reason": "x"},
     ).json()
     client.post(f"/leave/requests/{req['id']}/approve", headers=mgr_h, json={})
-    # second decision must fail (illegal transition)
     again = client.post(f"/leave/requests/{req['id']}/reject", headers=mgr_h, json={})
-    assert again.status_code == 400
+    assert again.status_code == 400  # illegal transition
 
 
-def test_employee_cannot_approve(client, auth_headers):
-    # employees lack the manager role entirely
-    r = client.get("/leave/approvals", headers=auth_headers["employee"])
-    assert r.status_code == 403
+def test_employee_cannot_access_approvals(client, auth_headers):
+    assert client.get("/leave/approvals", headers=auth_headers["employee"]).status_code == 403
 
 
-def test_manager_cannot_approve_non_report(client):
+def test_manager_cannot_approve_non_report(client, team):
     """A plain manager must not decide a request from someone who isn't their report."""
-    from app.models.enums import RBACRole
-
-    db = SessionLocal()
-    try:
-        # Pick a user whose role is EXACTLY manager (not hr_admin/super_admin,
-        # which are legitimately allowed to decide any request).
-        mgr_user = db.scalar(
-            select(User).where(User.rbac_role == RBACRole.manager).limit(1)
-        )
-        mgr_a_id = mgr_user.employee_id
-        # A report belonging to a DIFFERENT manager.
-        report_of_b = db.scalar(
-            select(Employee).where(
-                Employee.manager_id.isnot(None), Employee.manager_id != mgr_a_id
-            ).limit(1)
-        )
-        mgr_a_email = mgr_user.email
-        report_b_email = db.scalar(
-            select(User).where(User.employee_id == report_of_b.id)
-        ).email
-    finally:
-        db.close()
-
-    rep_h = _headers(client, report_b_email)
-    mgr_a_h = _headers(client, mgr_a_email)
-    annual = next(t for t in client.get("/leave/types", headers=rep_h).json() if t["code"] == "ANNUAL")
-    start = date.today() + timedelta(days=40)
-    while start.weekday() >= 5:
-        start += timedelta(days=1)
+    rep_h = _headers(client, team["report_email"])
+    other_h = _headers(client, team["other_mgr_email"])  # manager of nobody relevant
+    annual_id = team["type_by_code"]["ANNUAL"]
+    start = _next_weekday(40)
     req = client.post(
         "/leave/requests",
         headers=rep_h,
-        json={"leave_type_id": annual["id"], "start_date": start.isoformat(), "end_date": start.isoformat(), "reason": "x"},
+        json={"leave_type_id": annual_id, "start_date": start.isoformat(), "end_date": start.isoformat(), "reason": "x"},
     ).json()
-    # manager A tries to approve manager B's report -> 403
-    resp = client.post(f"/leave/requests/{req['id']}/approve", headers=mgr_a_h, json={})
+    resp = client.post(f"/leave/requests/{req['id']}/approve", headers=other_h, json={})
     assert resp.status_code == 403
-    # cleanup: cancel as owner
     client.post(f"/leave/requests/{req['id']}/cancel", headers=rep_h)

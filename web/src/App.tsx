@@ -8,6 +8,7 @@ import ProfilePage from "./pages/ProfilePage";
 import OrgChartPage from "./pages/OrgChartPage";
 import LeavePage from "./pages/LeavePage";
 import ApprovalsPage from "./pages/ApprovalsPage";
+import PolicyPage from "./pages/PolicyPage";
 import AgentPage from "./pages/AgentPage";
 import type { RBACRole } from "./lib/types";
 
@@ -47,6 +48,7 @@ export default function App() {
             </Protected>
           }
         />
+        <Route path="/policies" element={<PolicyPage />} />
         <Route path="/agent" element={<AgentPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/directory" replace />} />
