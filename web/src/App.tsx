@@ -1,48 +1,55 @@
-import { Terminal, ShieldCheck, Users, CalendarClock, BookText, Bot } from "lucide-react";
+import { Navigate, Route, Routes } from "react-router-dom";
+import { useAuth } from "./lib/auth";
+import Layout from "./components/Layout";
+import { Spinner } from "./components/ui";
+import LoginPage from "./pages/LoginPage";
+import DirectoryPage from "./pages/DirectoryPage";
+import ProfilePage from "./pages/ProfilePage";
+import OrgChartPage from "./pages/OrgChartPage";
+import LeavePage from "./pages/LeavePage";
+import ApprovalsPage from "./pages/ApprovalsPage";
+import AgentPage from "./pages/AgentPage";
+import type { RBACRole } from "./lib/types";
 
-// Milestone 1 placeholder shell. Real routes/pages land in Milestone 3+.
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-
-const modules = [
-  { icon: Users, label: "Directory & Org Chart", status: "Milestone 3" },
-  { icon: CalendarClock, label: "Leave / PTO", status: "Milestone 3" },
-  { icon: BookText, label: "Policy Knowledge Base", status: "Milestone 4" },
-  { icon: Bot, label: "AI HR Agent", status: "Milestone 5" },
-];
+function Protected({ children, minRole }: { children: JSX.Element; minRole?: RBACRole }) {
+  const { me, loading, hasRole } = useAuth();
+  if (loading)
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg">
+        <Spinner label="starting session…" />
+      </div>
+    );
+  if (!me) return <Navigate to="/login" replace />;
+  if (minRole && !hasRole(minRole)) return <Navigate to="/directory" replace />;
+  return children;
+}
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-bg text-slate-200">
-      <header className="border-b border-border px-6 py-4 flex items-center gap-3">
-        <Terminal className="text-accent" size={22} />
-        <span className="font-mono font-bold tracking-wide text-accent">PeopleDesk</span>
-        <span className="text-muted text-xs font-mono ml-2">// HRMS + core AI agent</span>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-6 py-16">
-        <div className="flex items-center gap-2 text-accent font-mono text-sm mb-2">
-          <ShieldCheck size={16} /> Milestone 1 — scaffold online
-        </div>
-        <h1 className="text-2xl font-semibold mb-6">Backbone is up.</h1>
-        <p className="text-muted mb-8 font-mono text-sm">
-          API base: <span className="text-accent">{API_BASE}</span>
-        </p>
-
-        <ul className="grid gap-3">
-          {modules.map((m) => (
-            <li
-              key={m.label}
-              className="flex items-center justify-between border border-border rounded-lg bg-surface px-4 py-3"
-            >
-              <span className="flex items-center gap-3">
-                <m.icon size={18} className="text-accent" />
-                {m.label}
-              </span>
-              <span className="font-mono text-xs text-muted">{m.status}</span>
-            </li>
-          ))}
-        </ul>
-      </main>
-    </div>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        element={
+          <Protected>
+            <Layout />
+          </Protected>
+        }
+      >
+        <Route path="/directory" element={<DirectoryPage />} />
+        <Route path="/directory/:id" element={<ProfilePage />} />
+        <Route path="/org-chart" element={<OrgChartPage />} />
+        <Route path="/leave" element={<LeavePage />} />
+        <Route
+          path="/approvals"
+          element={
+            <Protected minRole="manager">
+              <ApprovalsPage />
+            </Protected>
+          }
+        />
+        <Route path="/agent" element={<AgentPage />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/directory" replace />} />
+    </Routes>
   );
 }

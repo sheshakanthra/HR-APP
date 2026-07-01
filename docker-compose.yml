@@ -31,6 +31,10 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    volumes:
+      # Dev bind-mount: host code is live inside the container (no rebuild on
+      # code changes). The image still bundles the code for standalone runs.
+      - ./api:/app
 
   web:
     build: ./web
