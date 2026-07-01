@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user
+from app.core.ratelimit import rate_limit
 from app.database import get_db
 from app.models.agent import AgentConversation, AgentMessage
 from app.models.user import User
@@ -59,7 +60,7 @@ def get_conversation(
     )
 
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post("/chat", response_model=ChatResponse, dependencies=[Depends(rate_limit("agent_chat", 20))])
 def chat(
     payload: ChatRequest,
     db: Session = Depends(get_db),

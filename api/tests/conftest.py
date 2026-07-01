@@ -11,7 +11,7 @@ import os
 
 # Must run before any `app.*` import so cached Settings sees it.
 os.environ["GROQ_API_KEY"] = "gsk_test_dummy_key_for_tests"
-os.environ.setdefault("APP_ENV", "test")
+os.environ["APP_ENV"] = "test"  # force (env_file may set development); disables rate limits
 
 import pytest
 from fastapi.testclient import TestClient

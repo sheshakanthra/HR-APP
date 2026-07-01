@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.ratelimit import rate_limit
 from app.core.audit import record
 from app.core.security import (
     create_access_token,
@@ -32,7 +33,7 @@ def _issue_tokens(user: User) -> TokenResponse:
     )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, dependencies=[Depends(rate_limit("auth_login", 10))])
 def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
     user = db.scalar(select(User).where(User.email == payload.email.lower()))
     # Constant-ish response: verify even on missing user to reduce enumeration.
@@ -49,7 +50,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
     return _issue_tokens(user)
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh", response_model=TokenResponse, dependencies=[Depends(rate_limit("auth_refresh", 30))])
 def refresh(payload: RefreshRequest, db: Session = Depends(get_db)) -> TokenResponse:
     try:
         claims = decode_token(payload.refresh_token)

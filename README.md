@@ -4,9 +4,6 @@ An internal HRMS for a ~200-person SaaS company whose defining feature is a
 **genuinely agentic, RAG-grounded AI assistant** (tool-calling, self-scoped,
 human-in-the-loop) — not a bolt-on chatbot.
 
-> Build status: **Milestone 1 complete** (scaffold + secrets + DB). Auth, modules,
-> and the agent land in subsequent milestones (see [Build order](#build-order)).
-
 ## Stack
 
 | Layer | Tech |
@@ -27,46 +24,91 @@ cp .env.example .env
 docker compose up --build
 ```
 
-- API: http://localhost:8000  (health: `/health`, docs: `/docs`)
+- API: http://localhost:8000  (health `/health`, docs `/docs`)
 - Web: http://localhost:5173
 - Postgres: `localhost:5432`
 
-The API container waits for Postgres, runs `alembic upgrade head`, optionally
-seeds (`SEED_ON_START=true`), then serves. **Missing/placeholder `GROQ_API_KEY`
-fails fast at startup** with a clear message.
+On boot the API waits for Postgres, runs `alembic upgrade head`, and (when
+`SEED_ON_START=true`) seeds + indexes policies. **Missing/placeholder
+`GROQ_API_KEY` fails fast** at startup with a clear message.
 
-### Seeding manually
+### Logins (after seed)
+
+- All demo employees: their seeded email / **`Passw0rd!`**
+- Super admin: `admin@peopledesk.io` / `SEED_ADMIN_PASSWORD`
+
+### Manual seed / index
 
 ```bash
 docker compose run --rm api python -m app.seed
-# reset + reseed:
-docker compose run --rm -e PEOPLEDESK_SEED_FORCE=true api python -m app.seed
+docker compose run --rm api python -m app.scripts.ingest_policies   # embed published policies
+docker compose run --rm -e PEOPLEDESK_SEED_FORCE=true api python -m app.seed  # reset
 ```
 
-Seed produces ~200 employees across 10 departments with a manager hierarchy,
-3 leave types + balances, user logins, and 8 sample policy docs.
+### Tests
 
-- All demo employees share the password **`Passw0rd!`**.
-- Super admin: `admin@peopledesk.io` / value of `SEED_ADMIN_PASSWORD`.
+```bash
+docker compose up -d postgres
+docker compose run --rm api pytest          # 46 tests: RBAC, leave state machine, RAG, agent guardrails
+```
 
-## Secrets hygiene
+## The AI agent
 
-- `.env` is git-ignored; only `.env.example` (placeholders) is committed.
-- `GROQ_API_KEY` is never hardcoded or logged; startup fails fast if unset.
-- Groq serves **generation only** — there is no Groq embeddings endpoint; embeddings run locally.
+Employee-facing, self-scoped, grounded. A transparent hand-rolled Groq
+tool-dispatch loop (`app/services/agent/`) — no agent framework. Six tools, each
+a real Python function with Pydantic-validated args executed under the caller's
+RBAC:
+
+- `search_policy_docs` — pgvector RAG over published policy; returns chunks with
+  source **title + version** (relevance-thresholded; empty ⇒ escalate, never guess).
+- `get_leave_balance` / `get_my_leave_requests` — caller's own data only.
+- `submit_leave_request` — creates a **PENDING** request routed to the manager;
+  **never approves**.
+- `get_employee_contact` — name/title/department/work email/manager only.
+- `flag_for_human_review` / `escalate_to_hr` — opens an HR ticket.
+
+**Guardrails (code + prompt):** self-scoped queries only; never exposes another
+person's comp/performance/leave; never approves/denies leave; never makes
+hiring/firing/promotion judgments; policy answers cited from retrieved chunks;
+mandatory escalation for harassment, grievances, mental-health/crisis, comp
+disputes, legal/compliance, termination, medical accommodation, ungrounded
+questions, or any "talk to a person." Every conversation and tool call is
+persisted (`agent_message` + `audit_log`).
+
+## Security & compliance
+
+- **RBAC** enforced by a FastAPI dependency (`app/api/deps.py`) on every route;
+  the agent's tools re-check it server-side. Roles: `employee < manager <
+  hr_admin < super_admin`.
+- **PII:** Argon2 password hashing; Pydantic response models can't leak comp
+  fields; no PII in URLs or logs; audit metadata is PII-minimized.
+- **Audit log:** append-only (`audit_log`), hr_admin+-readable at
+  `GET /admin/audit-log`. Every write and every agent tool call is recorded
+  (auth login; leave submit/approve/reject/cancel; policy CRUD/publish; agent tools).
+- **Transport/config:** CORS locked to `WEB_ORIGIN`; rate limits (slowapi) on
+  `/auth/login` (10/min), `/auth/refresh` (30/min), `/agent/chat` (20/min);
+  JWT expiry + refresh.
+- **Secrets:** `.env` git-ignored; only `.env.example` (placeholders) committed;
+  `GROQ_API_KEY` never hardcoded or logged.
+
+## Integrations (mocked)
+
+SSO, Slack, payroll, and calendar are **mocked** behind clean interfaces in
+`app/integrations/` (each labeled MOCK in code) so the app runs fully locally
+with no vendor accounts; swap in a real provider without touching call sites.
 
 ## Scope
 
-**v1 (building):** Employee Directory + Org Chart · Leave/PTO · Policy KB · AI Agent.
-**Phase 2 (stubs):** Performance reviews · read-only HR analytics.
+**v1 (built):** Employee Directory + Org Chart · Leave/PTO · Policy KB · AI Agent.
+**Phase 2 (scaffolded/next):** performance reviews · read-only aggregate HR analytics.
 **Phase 3 (not built):** engagement surveys · onboarding workflows · document e-sign.
 
 ### Explicitly out of scope — legal/compliance risk (by design)
 
 - **AI-driven hiring / resume screening / candidate ranking** — disparate-impact
-  and regulatory risk (NYC Local Law 144, EU AI Act "high-risk"). Human decisions only.
+  and regulatory risk (NYC Local Law 144, EU AI Act "high-risk"); human decisions only.
 - **AI termination / performance-based firing recommendations** — the agent never produces these.
-- **The agent approving/denying any leave** — approvals are human-only.
+- **The agent approving/denying leave** — approvals are human-only.
 
 These require legal review + human-in-the-loop; the app is built so a human always
 holds these decisions.
@@ -75,43 +117,32 @@ holds these decisions.
 
 ```
 React SPA ──JWT──> FastAPI
-                     ├── auth (JWT, RBAC dependency)
+                     ├── auth (JWT, RBAC dependency, rate limits)
                      ├── modules: directory / leave / policy
-                     ├── agent service ─► Groq SDK (generation + tool-calling loop)
-                     │      └── RAG: fastembed (local) ─► pgvector similarity search
+                     ├── agent service ─► Groq SDK (generation + tool loop)
+                     │      └── RAG: fastembed (local) ─► pgvector search
                      ├── integrations/ (MOCKED: sso, slack, payroll, calendar)
                      └── audit + rbac in a dependency layer
                    PostgreSQL (+ pgvector)  — one DB
 ```
-
-External integrations (SSO, Slack, payroll, calendar) are **mocked** behind a clean
-interface in `api/app/integrations/` so the app runs fully locally with no vendor
-accounts. Each mock is labeled in code; swap in a real provider without touching call sites.
 
 ## Repo layout
 
 ```
 api/                 FastAPI backend
   app/
+    api/routes/      auth, admin, directory, leave, policy, agent
+    api/deps.py      auth + RBAC dependency layer
+    core/            security (Argon2/JWT), audit, rate limiting
     models/          SQLAlchemy 2.0 models (+ pgvector)
+    services/        leave state machine, policy RAG, agent (tools + loop)
     integrations/    mocked external providers
-    core/            security (Argon2, JWT)
-    scripts/         container helpers (wait_for_db)
-    config.py        env-driven settings, fail-fast secret validation
     seed.py          demo data generator
   alembic/           migrations
-web/                 React + Vite frontend (shell in M1; pages land in M3)
+  tests/             pytest (RBAC, leave, directory, policy, agent)
+web/                 React + Vite frontend
 docker-compose.yml   postgres (+pgvector) · api · web
 ```
-
-## Build order
-
-1. ✅ Scaffold + secrets + DB (models, Alembic, seed, Docker Compose)
-2. Auth + RBAC (JWT login/refresh, role-gated routes + tests)
-3. Directory + Leave (endpoints + React pages, approval state machine)
-4. Policy KB + RAG ingestion (publish → chunk → embed → pgvector)
-5. AI Agent (Groq tool loop, 6 tools, guardrails, escalation, UI panel)
-6. Audit + hardening + tests + full README
 
 ## Deployment note
 
