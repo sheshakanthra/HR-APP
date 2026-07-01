@@ -1,45 +1,116 @@
 # Sage
 
-*The HR assistant that knows what it doesn't know.*
+**The HR assistant that knows what it doesn't know.**
 
-An internal HRMS for a ~200-person SaaS company whose defining feature is a
-**genuinely agentic, RAG-grounded AI assistant** (tool-calling, self-scoped,
-human-in-the-loop) — not a bolt-on chatbot.
+Sage is a modern Human Resource Management System (HRMS) built for a ~200-person
+SaaS organization. Its defining capability is a **genuinely agentic,
+retrieval-grounded AI assistant** — a tool-calling, self-scoped, human-in-the-loop
+agent that answers policy questions, manages leave workflows, and routes
+sensitive matters to HR, rather than a superficial chatbot layered on top of
+static FAQs.
 
-## Stack
+---
 
-| Layer | Tech |
+## Overview
+
+Traditional HR tools either lock employees out of self-service or bolt on a
+chatbot that hallucinates policy answers. Sage takes a different approach:
+
+- Every AI response is **grounded in retrieved, versioned policy documents** —
+  no answer is generated without a verifiable source, and the agent escalates
+  rather than guesses when it lacks grounding.
+- The agent operates under the **same role-based access control as the rest of
+  the platform**, so it can never see or return more than the requesting
+  employee is authorized to access.
+- High-stakes decisions — leave approvals, hiring, performance, and
+  termination — remain **strictly human-owned**, by design and by code.
+- Every conversation, tool invocation, and system write is captured in an
+  **append-only audit log** for full traceability and compliance review.
+
+The result is an internal tool that employees can trust, and that HR and
+security teams can safely put in front of an entire company.
+
+---
+
+## Core Features
+
+| Module | Description |
 |---|---|
-| Frontend | React 18 + TypeScript + Vite + Tailwind, React Router, TanStack Query, `lucide-react` |
-| Backend | FastAPI (Python 3.11), Pydantic v2, SQLAlchemy 2.0, Alembic |
-| DB | PostgreSQL 16 + **pgvector** (app tables *and* policy embeddings in one DB) |
-| Auth | JWT (access + refresh), Argon2 password hashing |
-| LLM | **Groq only** for generation (`llama-3.3-70b-versatile`) via the official SDK |
-| Embeddings | **Local** via `fastembed` (`BAAI/bge-small-en-v1.5`, 384-dim) — *not* Groq |
+| **AI Agent** | Conversational assistant with six governed tools, RAG-grounded policy answers, and mandatory escalation paths for sensitive topics. |
+| **Employee Directory & Org Chart** | Searchable company directory with role-appropriate contact and reporting-line visibility. |
+| **Leave / PTO Management** | Full leave request lifecycle with a defined approval state machine; the agent can submit requests but never approves them. |
+| **Policy Knowledge Base** | Versioned, publishable policy documents that are chunked and embedded for retrieval by the AI agent. |
+| **Audit & Compliance** | Append-only logging of every write and every agent action, reviewable by HR admins. |
 
-## Quick start
+---
+
+## Technology Stack
+
+**Frontend**
+- React 18 + TypeScript, built with Vite
+- Tailwind CSS for styling
+- React Router for navigation
+- TanStack Query for server state management
+- `lucide-react` icon set
+
+**Backend**
+- FastAPI (Python 3.11)
+- Pydantic v2 for request/response validation
+- SQLAlchemy 2.0 ORM with Alembic migrations
+
+**Data & Retrieval**
+- PostgreSQL 16 with the **pgvector** extension — application data and policy
+  embeddings live in a single database
+- `fastembed` (`BAAI/bge-small-en-v1.5`, 384-dim) for **local** embedding
+  generation, decoupled from the LLM provider
+
+**AI / LLM**
+- Groq (`llama-3.3-70b-versatile`) for generation, via the official SDK
+- A transparent, hand-rolled tool-dispatch loop — no third-party agent
+  framework — for full control over guardrails and auditability
+
+**Authentication & Security**
+- JWT-based authentication (access + refresh tokens)
+- Argon2 password hashing
+- Role-based access control enforced at the API layer
+
+**Infrastructure**
+- Docker Compose for local orchestration (Postgres, API, web)
+- Planned production path: API on Render, web on Vercel, managed
+  Postgres with pgvector
+
+---
+
+## Getting Started
 
 ```bash
 cp .env.example .env
-# Fill in JWT_SECRET_KEY (python -c "import secrets; print(secrets.token_urlsafe(64))")
-# and a real GROQ_API_KEY from https://console.groq.com/keys
+# Set JWT_SECRET_KEY:
+#   python -c "import secrets; print(secrets.token_urlsafe(64))"
+# Set a valid GROQ_API_KEY from https://console.groq.com/keys
 docker compose up --build
 ```
 
-- API: http://localhost:8000  (health `/health`, docs `/docs`)
-- Web: http://localhost:5173
-- Postgres: `localhost:5432`
+| Service | URL |
+|---|---|
+| API | http://localhost:8000 (health `/health`, docs `/docs`) |
+| Web | http://localhost:5173 |
+| Postgres | `localhost:5432` |
 
-On boot the API waits for Postgres, runs `alembic upgrade head`, and (when
-`SEED_ON_START=true`) seeds + indexes policies. **Missing/placeholder
-`GROQ_API_KEY` fails fast** at startup with a clear message.
+On startup, the API waits for Postgres, applies migrations
+(`alembic upgrade head`), and — when `SEED_ON_START=true` — seeds demo data
+and indexes policy documents. A missing or placeholder `GROQ_API_KEY` causes
+the API to **fail fast** with a clear error rather than start in a broken
+state.
 
-### Logins (after seed)
+### Demo Credentials
 
-- All demo employees: their seeded email / **`Passw0rd!`**
-- Super admin: `admin@sage.io` / `SEED_ADMIN_PASSWORD`
+| Account | Login |
+|---|---|
+| Any seeded employee | Their seeded email / `Passw0rd!` |
+| Super admin | `admin@sage.io` / `SEED_ADMIN_PASSWORD` |
 
-### Manual seed / index
+### Manual Seed & Indexing
 
 ```bash
 docker compose run --rm api python -m app.seed
@@ -47,88 +118,124 @@ docker compose run --rm api python -m app.scripts.ingest_policies   # embed publ
 docker compose run --rm -e PEOPLEDESK_SEED_FORCE=true api python -m app.seed  # reset
 ```
 
-### Tests
+### Running Tests
 
 ```bash
 docker compose up -d postgres
-docker compose run --rm api pytest          # 46 tests: RBAC, leave state machine, RAG, agent guardrails
+docker compose run --rm api pytest
 ```
 
-## The AI agent
+46 tests covering RBAC enforcement, the leave state machine, RAG retrieval,
+and agent guardrails.
 
-Employee-facing, self-scoped, grounded. A transparent hand-rolled Groq
-tool-dispatch loop (`app/services/agent/`) — no agent framework. Six tools, each
-a real Python function with Pydantic-validated args executed under the caller's
-RBAC:
+---
 
-- `search_policy_docs` — pgvector RAG over published policy; returns chunks with
-  source **title + version** (relevance-thresholded; empty ⇒ escalate, never guess).
-- `get_leave_balance` / `get_my_leave_requests` — caller's own data only.
-- `submit_leave_request` — creates a **PENDING** request routed to the manager;
-  **never approves**.
-- `get_employee_contact` — name/title/department/work email/manager only.
-- `flag_for_human_review` / `escalate_to_hr` — opens an HR ticket.
+## The AI Agent
 
-**Guardrails (code + prompt):** self-scoped queries only; never exposes another
-person's comp/performance/leave; never approves/denies leave; never makes
-hiring/firing/promotion judgments; policy answers cited from retrieved chunks;
-mandatory escalation for harassment, grievances, mental-health/crisis, comp
-disputes, legal/compliance, termination, medical accommodation, ungrounded
-questions, or any "talk to a person." Every conversation and tool call is
-persisted (`agent_message` + `audit_log`).
+The agent is employee-facing, self-scoped to the requesting user, and answers
+only from grounded sources. It runs on a hand-rolled Groq tool-dispatch loop
+(`app/services/agent/`), giving full visibility and control over every tool
+call rather than delegating orchestration to an external framework.
 
-## Security & compliance
+**Available tools**
 
-- **RBAC** enforced by a FastAPI dependency (`app/api/deps.py`) on every route;
-  the agent's tools re-check it server-side. Roles: `employee < manager <
-  hr_admin < super_admin`.
-- **PII:** Argon2 password hashing; Pydantic response models can't leak comp
-  fields; no PII in URLs or logs; audit metadata is PII-minimized.
-- **Audit log:** append-only (`audit_log`), hr_admin+-readable at
-  `GET /admin/audit-log`. Every write and every agent tool call is recorded
-  (auth login; leave submit/approve/reject/cancel; policy CRUD/publish; agent tools).
-- **Transport/config:** CORS locked to `WEB_ORIGIN`; rate limits (slowapi) on
-  `/auth/login` (10/min), `/auth/refresh` (30/min), `/agent/chat` (20/min);
-  JWT expiry + refresh.
-- **Secrets:** `.env` git-ignored; only `.env.example` (placeholders) committed;
-  `GROQ_API_KEY` never hardcoded or logged.
+| Tool | Purpose |
+|---|---|
+| `search_policy_docs` | pgvector RAG search over published policy; returns chunks with source title and version. Relevance-thresholded — an empty result triggers escalation, never a guess. |
+| `get_leave_balance` | Returns the caller's own leave balance. |
+| `get_my_leave_requests` | Returns the caller's own leave request history. |
+| `submit_leave_request` | Creates a `PENDING` request routed to the employee's manager. Never auto-approves. |
+| `get_employee_contact` | Returns name, title, department, work email, and manager — no sensitive fields. |
+| `flag_for_human_review` / `escalate_to_hr` | Opens an HR ticket for issues requiring human judgment. |
 
-## Integrations (mocked)
+**Guardrails (enforced in both code and prompt)**
 
-SSO, Slack, payroll, and calendar are **mocked** behind clean interfaces in
-`app/integrations/` (each labeled MOCK in code) so the app runs fully locally
-with no vendor accounts; swap in a real provider without touching call sites.
+- Queries are strictly self-scoped; the agent cannot access or disclose another
+  employee's compensation, performance, or leave data.
+- The agent never approves or denies leave, and never renders hiring, firing,
+  or promotion judgments.
+- Policy answers must be traceable to retrieved source chunks.
+- Escalation is mandatory for harassment, grievances, mental health or crisis
+  situations, compensation disputes, legal or compliance matters, termination,
+  medical accommodation requests, ungrounded questions, or any explicit
+  request to speak with a person.
+- Every conversation turn and tool call is persisted to `agent_message` and
+  `audit_log` for full auditability.
 
-## Scope
+---
 
-**v1 (built):** Employee Directory + Org Chart · Leave/PTO · Policy KB · AI Agent.
-**Phase 2 (scaffolded/next):** performance reviews · read-only aggregate HR analytics.
-**Phase 3 (not built):** engagement surveys · onboarding workflows · document e-sign.
+## Security & Compliance
 
-### Explicitly out of scope — legal/compliance risk (by design)
+- **Access control** — RBAC is enforced by a FastAPI dependency
+  (`app/api/deps.py`) on every route, and re-checked server-side inside each
+  agent tool. Role hierarchy: `employee < manager < hr_admin < super_admin`.
+- **PII protection** — Argon2 password hashing; response models are
+  structured to prevent leaking compensation fields; no PII appears in URLs
+  or logs; audit metadata is minimized by design.
+- **Audit logging** — An append-only `audit_log`, readable by `hr_admin` and
+  above at `GET /admin/audit-log`. Every write and every agent tool
+  invocation is recorded, including authentication events, leave lifecycle
+  actions, policy CRUD/publish events, and agent tool calls.
+- **Transport & rate limiting** — CORS is locked to `WEB_ORIGIN`; rate limits
+  (via `slowapi`) are applied to `/auth/login` (10/min), `/auth/refresh`
+  (30/min), and `/agent/chat` (20/min); JWTs use short expiry with refresh.
+- **Secrets management** — `.env` is git-ignored; only `.env.example`
+  (placeholder values) is committed; `GROQ_API_KEY` is never hardcoded or
+  logged.
 
-- **AI-driven hiring / resume screening / candidate ranking** — disparate-impact
-  and regulatory risk (NYC Local Law 144, EU AI Act "high-risk"); human decisions only.
-- **AI termination / performance-based firing recommendations** — the agent never produces these.
-- **The agent approving/denying leave** — approvals are human-only.
+---
 
-These require legal review + human-in-the-loop; the app is built so a human always
-holds these decisions.
+## Integrations (Mocked)
+
+SSO, Slack, payroll, and calendar integrations are mocked behind clean
+interfaces in `app/integrations/` (each explicitly labeled `MOCK` in code).
+This allows the full application to run locally without any vendor accounts,
+while keeping the interfaces swappable for real providers without touching
+call sites elsewhere in the codebase.
+
+---
+
+## Project Scope
+
+**v1 — Built**
+Employee Directory & Org Chart · Leave/PTO Management · Policy Knowledge Base
+· AI Agent
+
+**Phase 2 — Scaffolded / Next**
+Performance reviews · Read-only aggregate HR analytics
+
+**Phase 3 — Not Yet Built**
+Engagement surveys · Onboarding workflows · Document e-signature
+
+### Explicitly Out of Scope (by design)
+
+These capabilities are intentionally excluded due to legal and compliance
+risk, and require human judgment in every case:
+
+- **AI-driven hiring, resume screening, or candidate ranking** — disparate-impact
+  and regulatory exposure (e.g., NYC Local Law 144, EU AI Act "high-risk"
+  classification); hiring decisions remain human-only.
+- **AI-generated termination or performance-based firing recommendations** —
+  the agent is architecturally incapable of producing these.
+- **AI approval or denial of leave requests** — approvals are always a human
+  action.
+
+---
 
 ## Architecture
 
 ```
 React SPA ──JWT──> FastAPI
-                     ├── auth (JWT, RBAC dependency, rate limits)
+                     ├── auth (JWT, RBAC dependency, rate limiting)
                      ├── modules: directory / leave / policy
                      ├── agent service ─► Groq SDK (generation + tool loop)
                      │      └── RAG: fastembed (local) ─► pgvector search
                      ├── integrations/ (MOCKED: sso, slack, payroll, calendar)
-                     └── audit + rbac in a dependency layer
-                   PostgreSQL (+ pgvector)  — one DB
+                     └── audit + RBAC in a shared dependency layer
+                   PostgreSQL (+ pgvector) — single database
 ```
 
-## Repo layout
+## Repository Layout
 
 ```
 api/                 FastAPI backend
@@ -141,12 +248,13 @@ api/                 FastAPI backend
     integrations/    mocked external providers
     seed.py          demo data generator
   alembic/           migrations
-  tests/             pytest (RBAC, leave, directory, policy, agent)
+  tests/             pytest suite (RBAC, leave, directory, policy, agent)
 web/                 React + Vite frontend
 docker-compose.yml   postgres (+pgvector) · api · web
 ```
 
-## Deployment note
+## Deployment Notes
 
-Local dev uses Docker Compose. A later production option is a split deploy
-(API on Render, web on Vercel, managed Postgres with pgvector) — not configured yet.
+Local development runs entirely on Docker Compose. A production deployment
+path — API on Render, web on Vercel, and a managed Postgres instance with
+pgvector — is planned but not yet configured.
