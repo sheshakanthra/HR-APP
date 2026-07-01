@@ -1,4 +1,6 @@
-# PeopleDesk
+# Sage
+
+*The HR assistant that knows what it doesn't know.*
 
 An internal HRMS for a ~200-person SaaS company whose defining feature is a
 **genuinely agentic, RAG-grounded AI assistant** (tool-calling, self-scoped,
@@ -35,7 +37,7 @@ On boot the API waits for Postgres, runs `alembic upgrade head`, and (when
 ### Logins (after seed)
 
 - All demo employees: their seeded email / **`Passw0rd!`**
-- Super admin: `admin@peopledesk.io` / `SEED_ADMIN_PASSWORD`
+- Super admin: `admin@sage.io` / `SEED_ADMIN_PASSWORD`
 
 ### Manual seed / index
 
