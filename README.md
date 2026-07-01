@@ -1,13 +1,38 @@
+<div align="center">
+
 # Sage
 
-**The HR assistant that knows what it doesn't know.**
+**Grounded HR intelligence for the modern workplace.**
 
-Sage is a modern Human Resource Management System (HRMS) built for a ~200-person
-SaaS organization. Its defining capability is a **genuinely agentic,
-retrieval-grounded AI assistant** — a tool-calling, self-scoped, human-in-the-loop
-agent that answers policy questions, manages leave workflows, and routes
-sensitive matters to HR, rather than a superficial chatbot layered on top of
-static FAQs.
+*Every answer traced to a source. Every decision left to a human.*
+
+![Python](https://img.shields.io/badge/python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/frontend-React%2018-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+![PostgreSQL](https://img.shields.io/badge/postgres-pgvector-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![Groq](https://img.shields.io/badge/LLM-Groq-F55036?style=for-the-badge)
+
+![RAG-Grounded](https://img.shields.io/badge/RAG--grounded-no%20guessing-critical?style=for-the-badge)
+![RBAC](https://img.shields.io/badge/RBAC-enforced-informational?style=for-the-badge)
+![Human-in-the-loop](https://img.shields.io/badge/approvals-human--only-important?style=for-the-badge)
+![License](https://img.shields.io/badge/license-Internal%20Use-lightgrey?style=for-the-badge)
+
+</div>
+
+---
+
+Most HR chatbots retrieve an FAQ and hope for the best. **Sage retrieves a
+versioned, permissioned source** — so every answer the agent gives is traceable,
+and every answer it can't ground gets escalated to a person instead of guessed at.
+
+```
+Employee query → Agent selects tool → pgvector retrieval → RBAC-scoped response → Audit log
+```
+
+Sage is a full HRMS — directory, org chart, leave/PTO, policy knowledge base —
+built around one core idea: an **agentic AI assistant** that is self-scoped,
+tool-calling, and human-in-the-loop by design, not a chatbot bolted on top of
+static documents.
 
 ---
 
