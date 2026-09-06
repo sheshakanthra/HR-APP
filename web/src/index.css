@@ -9,3 +9,24 @@
 body {
   @apply bg-bg text-slate-200 font-sans antialiased;
 }
+
+.org-connector path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 260ms ease-out 60ms;
+}
+
+[data-open="true"] .org-connector path {
+  stroke-dashoffset: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

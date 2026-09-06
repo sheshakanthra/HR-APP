@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { useDepartments, useEmployees } from "../lib/queries";
-import { Avatar, Card, EmptyState, Input, Spinner } from "../components/ui";
+import { Avatar, Card, EmptyState, Input, Select, Spinner } from "../components/ui";
 
 export default function DirectoryPage() {
   const [search, setSearch] = useState("");
@@ -34,13 +34,12 @@ export default function DirectoryPage() {
             className="pl-9"
           />
         </div>
-        <select
+        <Select
           value={dept ?? ""}
           onChange={(e) => {
             setDept(e.target.value ? Number(e.target.value) : null);
             setPage(1);
           }}
-          className="cursor-pointer rounded-md border border-border bg-bg px-3 py-2 text-sm text-slate-100 focus:border-accent/60 focus:outline-none"
         >
           <option value="">All departments</option>
           {departments?.map((d) => (
@@ -48,7 +47,7 @@ export default function DirectoryPage() {
               {d.name}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {isLoading ? (
@@ -59,7 +58,11 @@ export default function DirectoryPage() {
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {data.items.map((e) => (
-              <Link key={e.id} to={`/directory/${e.id}`}>
+              <Link
+                key={e.id}
+                to={`/directory/${e.id}`}
+                className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+              >
                 <Card className="flex cursor-pointer items-center gap-3 p-4 transition-colors duration-150 hover:border-accent/50">
                   <Avatar first={e.first_name} last={e.last_name} />
                   <div className="min-w-0">
@@ -80,7 +83,7 @@ export default function DirectoryPage() {
             <button
               disabled={page <= 1}
               onClick={() => setPage((p) => p - 1)}
-              className="flex cursor-pointer items-center gap-1 text-muted hover:text-accent disabled:cursor-not-allowed disabled:opacity-30"
+              className="flex cursor-pointer items-center gap-1 rounded px-1 text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-30"
             >
               <ChevronLeft size={16} /> prev
             </button>
@@ -90,7 +93,7 @@ export default function DirectoryPage() {
             <button
               disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
-              className="flex cursor-pointer items-center gap-1 text-muted hover:text-accent disabled:cursor-not-allowed disabled:opacity-30"
+              className="flex cursor-pointer items-center gap-1 rounded px-1 text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-30"
             >
               next <ChevronRight size={16} />
             </button>

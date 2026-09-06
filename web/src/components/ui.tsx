@@ -23,7 +23,7 @@ export function SectionTitle({ children }: { children: ReactNode }) {
 }
 
 const STATUS_STYLES: Record<LeaveStatus, string> = {
-  pending: "text-amber-300 border-amber-400/40 bg-amber-400/10",
+  pending: "text-accent-2 border-accent-2/40 bg-accent-2/10",
   approved: "text-accent border-accent/40 bg-accent/10",
   rejected: "text-rose-300 border-rose-400/40 bg-rose-400/10",
   cancelled: "text-slate-400 border-slate-500/40 bg-slate-500/10",
@@ -72,6 +72,15 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   );
 }
 
+export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      {...props}
+      className={`cursor-pointer rounded-md border border-border bg-bg px-3 py-2 text-sm text-slate-100 focus:border-accent/60 focus:outline-none focus:ring-1 focus:ring-accent/40 ${props.className ?? ""}`}
+    />
+  );
+}
+
 export function EmptyState({ children }: { children: ReactNode }) {
   return (
     <div className="rounded-lg border border-dashed border-border p-8 text-center font-mono text-sm text-muted">
@@ -80,9 +89,25 @@ export function EmptyState({ children }: { children: ReactNode }) {
   );
 }
 
-export function Avatar({ first, last }: { first: string; last: string }) {
+const AVATAR_SIZES = {
+  sm: "h-7 w-7 text-[10px]",
+  md: "h-9 w-9 text-xs",
+  lg: "h-16 w-16 text-lg",
+};
+
+export function Avatar({
+  first,
+  last,
+  size = "md",
+}: {
+  first: string;
+  last: string;
+  size?: "sm" | "md" | "lg";
+}) {
   return (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-accent/30 bg-accent/10 font-mono text-xs text-accent">
+    <span
+      className={`flex shrink-0 items-center justify-center rounded-full border border-accent/30 bg-accent/10 font-mono text-accent ${AVATAR_SIZES[size]}`}
+    >
       {first[0]}
       {last[0]}
     </span>

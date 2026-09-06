@@ -8,7 +8,16 @@ import {
   useSubmitLeave,
 } from "../lib/queries";
 import { ApiError } from "../lib/api";
-import { Button, Card, EmptyState, Input, SectionTitle, Spinner, StatusBadge } from "../components/ui";
+import {
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  SectionTitle,
+  Select,
+  Spinner,
+  StatusBadge,
+} from "../components/ui";
 
 export default function LeavePage() {
   const { data: balances, isLoading: balLoading } = useMyBalance();
@@ -62,8 +71,10 @@ export default function LeavePage() {
               <div className="font-mono text-xs uppercase tracking-widest text-muted">
                 {b.leave_type_name}
               </div>
-              <div className="mt-2 font-mono text-3xl text-accent">{b.available.toFixed(1)}</div>
-              <div className="mt-1 font-mono text-[11px] text-muted">
+              <div className="mt-2 font-mono text-3xl tabular-nums text-accent">
+                {b.available.toFixed(1)}
+              </div>
+              <div className="mt-1 font-mono text-[11px] tabular-nums text-muted">
                 {b.available.toFixed(1)} available · {b.used.toFixed(1)} used · {b.accrued.toFixed(1)}{" "}
                 accrued
               </div>
@@ -80,10 +91,10 @@ export default function LeavePage() {
             <form onSubmit={onSubmit} className="space-y-4">
               <div>
                 <label className="mb-1 block font-mono text-xs text-muted">Leave type</label>
-                <select
+                <Select
                   value={typeId}
                   onChange={(e) => setTypeId(e.target.value ? Number(e.target.value) : "")}
-                  className="w-full cursor-pointer rounded-md border border-border bg-bg px-3 py-2 text-sm text-slate-100 focus:border-accent/60 focus:outline-none"
+                  className="w-full"
                 >
                   <option value="">Select…</option>
                   {types?.map((t) => (
@@ -91,7 +102,7 @@ export default function LeavePage() {
                       {t.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -145,7 +156,7 @@ export default function LeavePage() {
                   {(r.status === "pending" || r.status === "approved") && (
                     <button
                       onClick={() => cancel.mutate(r.id)}
-                      className="flex cursor-pointer items-center gap-1 rounded border border-border px-2 py-1 font-mono text-[11px] text-muted hover:border-rose-400/50 hover:text-rose-300"
+                      className="flex cursor-pointer items-center gap-1 rounded border border-border px-2 py-1 font-mono text-[11px] text-muted hover:border-rose-400/50 hover:text-rose-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
                     >
                       <X size={12} /> cancel
                     </button>

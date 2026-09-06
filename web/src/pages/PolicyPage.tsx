@@ -17,9 +17,9 @@ function PolicyStatusBadge({ status }: { status: PolicyStatus }) {
   const style =
     status === "published"
       ? "text-accent border-accent/40 bg-accent/10"
-      : "text-amber-300 border-amber-400/40 bg-amber-400/10";
+      : "text-accent-2 border-accent-2/40 bg-accent-2/10";
   return (
-    <span className={`rounded border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${style}`}>
+    <span className={`rounded border px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider ${style}`}>
       {status}
     </span>
   );
@@ -68,7 +68,7 @@ export default function PolicyPage() {
                     setSelected(p.id);
                     setCreating(false);
                   }}
-                  className={`flex w-full cursor-pointer items-start gap-2 rounded-md border p-3 text-left transition-colors duration-150 ${
+                  className={`flex w-full cursor-pointer items-start gap-2 rounded-md border p-3 text-left transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
                     selected === p.id
                       ? "border-accent/60 bg-accent/5"
                       : "border-border bg-surface hover:border-accent/40"
@@ -131,7 +131,7 @@ function PolicySearch() {
       {search.data && (
         <div className="mt-4">
           {!search.data.grounded ? (
-            <p className="font-mono text-xs text-amber-300">
+            <p className="font-mono text-xs text-accent-2">
               Nothing relevant in current policy. The assistant would offer to escalate to a human
               rather than guess.
             </p>
@@ -267,7 +267,7 @@ function PolicyEditor({
             value={body}
             onChange={(e) => setBody(e.target.value)}
             rows={10}
-            className="w-full rounded-md border border-border bg-bg px-3 py-2 text-sm text-slate-100 focus:border-accent/60 focus:outline-none"
+            className="w-full rounded-md border border-border bg-bg px-3 py-2 text-sm text-slate-100 focus:border-accent/60 focus:outline-none focus:ring-1 focus:ring-accent/40"
           />
         </div>
         {error && <p className="font-mono text-xs text-rose-400">{error}</p>}

@@ -2,7 +2,7 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Mail, MapPin, Building2, CalendarDays, ShieldAlert } from "lucide-react";
 import { useProfile } from "../lib/queries";
 import { ApiError } from "../lib/api";
-import { Avatar, Card, EmptyState, Spinner } from "../components/ui";
+import { Avatar, Card, EmptyState, SectionTitle, Spinner } from "../components/ui";
 
 export default function ProfilePage() {
   const { id } = useParams();
@@ -16,7 +16,7 @@ export default function ProfilePage() {
       <div>
         <BackLink />
         <EmptyState>
-          <ShieldAlert className="mx-auto mb-2 text-amber-300" size={22} />
+          <ShieldAlert className="mx-auto mb-2 text-accent-2" size={22} />
           {forbidden
             ? "You can view this person's directory card but not their full record."
             : "Employee not found."}
@@ -31,10 +31,7 @@ export default function ProfilePage() {
     <div>
       <BackLink />
       <div className="mb-6 flex items-center gap-4">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full border border-accent/30 bg-accent/10 font-mono text-lg text-accent">
-          {data.first_name[0]}
-          {data.last_name[0]}
-        </span>
+        <Avatar first={data.first_name} last={data.last_name} size="lg" />
         <div>
           <h1 className="text-2xl font-semibold">
             {data.first_name} {data.last_name}
@@ -45,7 +42,7 @@ export default function ProfilePage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="p-5">
-          <h2 className="mb-4 font-mono text-xs uppercase tracking-widest text-muted">Details</h2>
+          <SectionTitle>Details</SectionTitle>
           <dl className="space-y-3 text-sm">
             <Row icon={Mail} label="Email" value={data.work_email} />
             <Row icon={Building2} label="Department" value={data.department_name ?? "—"} />
@@ -56,13 +53,11 @@ export default function ProfilePage() {
         </Card>
 
         <Card className="p-5">
-          <h2 className="mb-4 font-mono text-xs uppercase tracking-widest text-muted">
-            Reporting
-          </h2>
+          <SectionTitle>Reporting</SectionTitle>
           {data.manager ? (
             <Link
               to={`/directory/${data.manager.id}`}
-              className="mb-4 flex cursor-pointer items-center gap-3 rounded-md border border-border p-3 hover:border-accent/50"
+              className="mb-4 flex cursor-pointer items-center gap-3 rounded-md border border-border p-3 hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
             >
               <Avatar first={data.manager.first_name} last={data.manager.last_name} />
               <div>
@@ -76,15 +71,13 @@ export default function ProfilePage() {
             <p className="mb-4 font-mono text-xs text-muted">No manager (top of org).</p>
           )}
 
-          <h3 className="mb-2 font-mono text-[11px] uppercase tracking-widest text-muted">
-            Direct reports ({data.direct_reports.length})
-          </h3>
+          <SectionTitle>Direct reports ({data.direct_reports.length})</SectionTitle>
           <div className="space-y-2">
             {data.direct_reports.map((r) => (
               <Link
                 key={r.id}
                 to={`/directory/${r.id}`}
-                className="flex cursor-pointer items-center gap-3 rounded-md border border-border p-2 hover:border-accent/50"
+                className="flex cursor-pointer items-center gap-3 rounded-md border border-border p-2 hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
               >
                 <Avatar first={r.first_name} last={r.last_name} />
                 <div className="min-w-0">

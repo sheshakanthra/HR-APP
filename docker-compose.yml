@@ -30,7 +30,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "8010:8000"
     volumes:
       # Dev bind-mount: host code is live inside the container (no rebuild on
       # code changes). The image still bundles the code for standalone runs.
@@ -41,7 +41,7 @@ services:
   web:
     build: ./web
     environment:
-      VITE_API_BASE_URL: http://localhost:8000
+      VITE_API_BASE_URL: http://localhost:8010
     depends_on:
       - api
     ports:

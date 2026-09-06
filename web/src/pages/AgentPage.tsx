@@ -73,7 +73,7 @@ export default function AgentPage() {
 
       <div className="grid gap-5 lg:grid-cols-[1fr_260px]">
         {/* Chat surface */}
-        <Card className="flex h-[560px] flex-col">
+        <Card className="flex h-[min(70vh,560px)] flex-col">
           <div ref={scrollRef} className="flex-1 space-y-4 overflow-auto p-5">
             {messages.length === 0 && (
               <div className="mt-8 text-center">
@@ -86,7 +86,7 @@ export default function AgentPage() {
                     <button
                       key={s}
                       onClick={() => send(s)}
-                      className="cursor-pointer rounded-full border border-border px-3 py-1 font-mono text-xs text-muted hover:border-accent/60 hover:text-accent"
+                      className="cursor-pointer rounded-full border border-border px-3 py-1 font-mono text-xs text-muted hover:border-accent/60 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
                     >
                       {s}
                     </button>
@@ -147,7 +147,7 @@ export default function AgentPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Message the assistant…"
-              className="flex-1 rounded-md border border-border bg-bg px-3 py-2 text-sm text-slate-100 placeholder:text-muted focus:border-accent/60 focus:outline-none"
+              className="flex-1 rounded-md border border-border bg-bg px-3 py-2 text-sm text-slate-100 placeholder:text-muted focus:border-accent/60 focus:outline-none focus:ring-1 focus:ring-accent/40"
             />
             <Button type="submit" disabled={busy} className="flex items-center gap-1">
               <Send size={15} />

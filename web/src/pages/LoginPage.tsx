@@ -35,15 +35,11 @@ export default function LoginPage() {
         </div>
         <form onSubmit={onSubmit} className="space-y-4 rounded-lg border border-border bg-surface p-6">
           <div>
-            <label className="mb-1 block font-mono text-xs uppercase tracking-widest text-muted">
-              Work email
-            </label>
+            <label className="mb-1 block font-mono text-xs text-muted">Work email</label>
             <Input value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
           </div>
           <div>
-            <label className="mb-1 block font-mono text-xs uppercase tracking-widest text-muted">
-              Password
-            </label>
+            <label className="mb-1 block font-mono text-xs text-muted">Password</label>
             <Input
               type="password"
               value={password}

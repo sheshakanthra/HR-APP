@@ -21,4 +21,6 @@ COPY . .
 EXPOSE 8000
 
 # entrypoint runs migrations (+ optional seed) then starts uvicorn.
-CMD ["./scripts/start.sh"]
+# invoked via bash so it works regardless of the file's executable bit
+# (e.g. after a git checkout on a filesystem/config that dropped it).
+CMD ["bash", "./scripts/start.sh"]
